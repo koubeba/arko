@@ -325,12 +325,21 @@ calculate_sizes:
 	div $t7, $t8
 	mflo PIXELS_ROW
 	#move PIXELS_ROW, $t7
+	
+#TEST: draw one triangle
 iterate:
 	la BMP_BUFFER, (BMP)
 	ulh $t7, 10(BMP_BUFFER)
 	add BMP_BUFFER, BMP_BUFFER, $t7
 	addi BMP_BUFFER, BMP_BUFFER, -1
-	ulh $t8, (BMP_BUFFER)
+	ulh $t6, (BMP_BUFFER)
+	
+#$a0, $a1, $a2- function arguments (type: vertices)
+#result in $v0
+#return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
+calc_sign:
+	
+	
 
 exit:
 	li $v0, 10
