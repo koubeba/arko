@@ -36,6 +36,13 @@
 	.eqv WHITE 0xFFFFFF
 	.eqv BLACK 0x000000
 	
+	.eqv WIDTH $t0
+	.eqv HEIGHT $t1
+	.eqv BITS_PP $t3
+	.eqv PIXELS_ROW $t4
+	.eqv PADDING $t5
+	.eqv BMP_BUFFER $t6
+	
 	bmp_path: .asciiz "in.bmp"
 
 #Assumpions: 3 bytes/pixel in the BMP
@@ -65,21 +72,6 @@ read_bmp:
 	syscall
 	
 	move BMP, $a1
-
-test_read_width:
-	ulhu $t4, 18(BMP)
-	
-	li $v0, 4
-	la $a0, testprompt
-	syscall
-	
-	li $v0, 1
-	move $a0, $t4
-	syscall
-	
-	li $v0, 4
-	la $a0, newline
-	syscall
 
 close_bmp:
 	li $v0, 16
@@ -311,40 +303,35 @@ input_C2:
 	addi $t0, $v0, 0	#shift the z on the right position
 	add C2, C2, $t0		#place the shifted z value in the correct register
 	
-calculate_array_size_1:
+calculate_sizes:
+	ulw WIDTH, 18(BMP) #read the bmp width
+	ulw HEIGHT, 22(BMP) #read the bmp height
+	ulw BITS_PP, 28(BMP) #read the amount of bits per pixel
 	
-	
-	
-print_coords:
-	
-	li $v0, 4	#print string: ask for z coordinate
-	la $a0, newline
-	syscall
-	
-	li $v0, 1
-	lw $t1, maskx
-	and $a0, C1, $t1
-	srl $a0, $a0, 20
-	syscall
-	
-	li $v0, 4	#print string: ask for z coordinate
-	la $a0, newline
-	syscall
-	
-	li $v0, 1
-	lw $t1, masky
-	and $a0, C1, $t1
-	srl $a0, $a0, 9
-	syscall
-	
-	li $v0, 4	#print string: ask for z coordinate
-	la $a0, newline
-	syscall
-	
-	li $v0, 1
-	lw $t1, maskz
-	and $a0, C1, $t1
-	syscall
+	#use $t6 and $t7 as temp register
+	mul $t6, WIDTH, BITS_PP
+	addi $t6, $t6, 31
+	li $t7, 32
+	div $t6, $t7
+	mflo $t6
+	mul $t6, $t6, 4	#t6: length of row in bytes
+	mul $t7, BITS_PP, WIDTH
+	li $t8, 8
+	div $t7, $t8
+	mflo $t7	#t7: how many bytes in row is occupied by pixels
+	sub PADDING, $t6, $t7
+	div BITS_PP, $t8
+	mflo $t8
+	div $t7, $t8
+	mflo PIXELS_ROW
+	#move PIXELS_ROW, $t7
+iterate:
+	la BMP_BUFFER, (BMP)
+	ulh $t7, 10(BMP_BUFFER)
+	add BMP_BUFFER, BMP_BUFFER, $t7
+	addi BMP_BUFFER, BMP_BUFFER, -1
+	ulh $t8, (BMP_BUFFER)
+
 exit:
 	li $v0, 10
 	syscall
