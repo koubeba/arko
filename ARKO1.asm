@@ -14,6 +14,7 @@
 	prompty: .asciiz "Enter y coordinate: "
 	promptz: .asciiz "Enter z coordinate: "
 	newline: .asciiz "\n"
+	loop_com: .asciiz "loopin\n"
 	
 	buffer: .space 1257682
 	
@@ -55,8 +56,8 @@
 	.eqv WIDTH -92($sp)
 	.eqv HEIGHT -88($sp)
 	.eqv BITS_PP -84($sp)
-	.eqv PIXELS_ROW -76($sp)
-	.eqv PADDING -80($sp)
+	.eqv PIXELS_ROW -80($sp)
+	.eqv PADDING -76($sp)
 	
 	bmp_path: .asciiz "in.bmp"
 
@@ -97,42 +98,78 @@ close_bmp:
 	
 calculate_sizes:
 	ulw $t0, 18(BMP) #read the bmp width
-	sw $t0, ($sp)
+	sw $t0, ($sp)	#save bmp width on stack
 	addi $sp, $sp, 4
 	ulw $t0, 22(BMP) #read the bmp height
-	sw $t0, ($sp)
+	sw $t0, ($sp)	#save bmp height on stack
 	addi $sp, $sp, 4
 	ulw $t0, 28(BMP) #read the amount of bits per pixel
-	sw $t0, ($sp)
+	sw $t0, ($sp)	#save bits/pixel on the stack
+	addi $sp, $sp, 4
+	#.eqv PIXELS_ROW -80($sp)
+	#.eqv PADDING -76($sp)
+	
+	lw $t0, -12($sp)
+	lw $t1, -4($sp)
+	mul $t0, $t0, $t1
+	addi $t0, $t0, 31
+	li $t1, 32
+	div $t0, $t1
+	mflo $t0
+	li $t1, 4
+	mul $t0, $t0, $t1 	#row size in bytes
+	
+	li $v0, 1
+	move $a0, $t0
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	
+	#Calculate amount of bytes per pixel:
+	li $t1, 8
+	lw $t2, -4($sp)		#Get bits/pixel
+	div $t2, $t2, $t1	#Divide bits/pixel by 8
+	
+	li $v0, 1
+	move $a0, $t2
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	
+	#Divide row size by amount of bytes/pixel:
+	div $t0, $t2
+	mflo $t3	#Quotient is the number of pixels in a row
+	mfhi $t1	#Remainder is the amount of pixel/padding
+	
+	li $v0, 1
+	move $a0, $t3
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	
+	#push the PIXELS_ROW on stacl
+	sw $t3, ($sp)
 	addi $sp, $sp, 4
 	
-	#use $t6 and $t7 as temp register
-	lw $t1, WIDTH
-	lw $t2, BITS_PP
-	mul $t6, $t1, $t2
-	addi $t6, $t6, 31
-	li $t7, 32
-	div $t6, $t7
-	mflo $t6
-	mul $t6, $t6, 4	#t6: length of row in bytes
-	lw $t1, WIDTH
-	lw $t2, BITS_PP
-	mul $t7, $t1, $t2
-	li $t8, 8
-	div $t7, $t8
-	mflo $t7	#t7: how many bytes in row is occupied by pixels
-	sub $t0, $t6, $t7
-	sw $t0, ($sp)	#store PADDING on stack
-	addi $sp, $sp, 4
-	lw $t0, BITS_PP
-	div $t0, $t8
-	mflo $t8
-	div $t7, $t8
-	mflo $t0	#store PIXELS_ROW on stack
-	sw $t0, ($sp)
-	addi $sp, $sp, 4
-	#move PIXELS_ROW, $t7
+	mul $t1, $t1, $t2
 	
+	li $v0, 1
+	move $a0, $t1
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	
+	#push the padding on stack
+	sw $t1, ($sp)
+	addi $sp, $sp, 4
+	
+	
+	
+
 	li $t0, 18
 get_coord_input:
 	li $v0, 4	#ask for coordinate
@@ -148,89 +185,70 @@ get_coord_input:
 	addi $t0, $t0, -1 #decrement the counter
 	
 	bnez $t0, get_coord_input
-	
-	
-calc_counter:
-	lw $t1, BITS_PP
-	li $t2, 8
-	div $t0, $t1, $t2
-	lw $t1, PIXELS_ROW
-	mul $t0, $t0, $t1
-	lw $t1, PADDING
-	add $s0, $t0, $t1	#s0: bytes in a row
-	lw $s1, HEIGHT		#s1: height
-	lw $t2, PIXELS_ROW
-	lw $t3, BITS_PP
-	mul $t2, $t2, $t3
-	li $t3, 8
-	div $s2, $t2, $t3	#s2: bytes per pixels in a row
-	lw $s2, PIXELS_ROW
 
-	#s0, s1, s2- counters
-#TEST: draw one triangle
-iterate:
-	la $t1, (BMP)
-	ulh $t0, 10($t1)
-	add $t1, $t1, $t0
-	ulh $s3, ($t1)	#$s3 is the beginning of pixel array
-	li $s4, 0		#s4: x
-	li $s5, 0		#s5: y
+
+loop_prep:
+	addi $t1, BMP, 10
+	ulw $t2, ($t1)		#read the offset beginning of pixel array
+	add $s3, BMP, $t2	#s3 is the address of the beginning of the pixel array
+	lw $s4, HEIGHT		#s4 holds the current y
+	li $s5, 0		#s5 holds the current x
 	
+	lw $s0, BITS_PP		#s0 hold the amount of bits per pixel
+	lw $s1, PIXELS_ROW	#s1 holds the amount of pixels per row
+	lw $s6, PADDING		#s6 holds the amount of padding
+	
+	lb $t4, WHITE
+	lb $t5, BLACK
+	
+	li $v0, 1
+	addi $a0, $s1, 0
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	li $v0, 1
+	addi $a0, $s6, 0
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	li $v0, 1
+	addi $a0, $s4, 0
+	syscall
+	li $v0, 4
+	la $a0, newline
+	syscall
+	
+	
+#test: color red, white, red, white
+#todo: add branching: 3 b/pixel or 4b/pixel?
 loop:
-#test: draw one triangle (1st one)
-	#a0- x of current pixel, a1- y of current pixel
-	move $a0, $s4
-	move $a1, $s5
-	jal is_in_t1
+	lw $s1, PIXELS_ROW
+	lw $s6, PADDING
+	row_loop:
+		sb $t4, ($s3)	#store byte in a buffer
+		sb $t4, 1($s3)
+		sb $t4, 2($s3)
+		addi $s3, $s3, 3
 	
-	bnez $v0, color_red
-	color_black:
-		lb $t0, BLACK
-		sb $t0, ($s3)
-		sb $t0, 1($s3)
-		sb $t0, 2($s3)
-		addi $s3, $s3, 3
-		addi $s2, $s2, -1
-		bnez $s2, no_padding
-		sw $t2, PADDING
+		addi $s1, $s1, -1	#one pixel has been saved
+	bnez $s1, row_loop
+		#add padding
+	beqz $s6, no_padding
 	add_padding:
-		lb $t0, WHITE
-		sb $t0, ($s3)
-		addi $t2, $t2, -1
-		bnez $t2, add_padding
-		lw $s2, PIXELS_ROW
-	no_padding:
-		addi $s1, $s1, -1
-		bnez $s1, loop
-	color_red:
-		lb $t0, BLACK
-		sb $t0, ($s3)
-		lb $t0, WHITE
-		sb $t0, 1($s3)
-		sb $t0, 2($s3)
+		sb $t4, ($s3)	#store byte in a buffer
+		sb $t4, 1($s3)
+		sb $t4, 2($s3)
 		addi $s3, $s3, 3
-		addi $s2, $s2, -1
 		
-		li $v0, 34
-		move $a0, $s3
-		syscall
-		
-		li $v0, 4
-		la $a0, newline
-		syscall
-		
-		
-		bnez $s2, no_padding_r
-		sw $t2, PADDING
-	add_padding_r:
-		lb $t0, WHITE
-		sb $t0, ($s3)
-		addi $t2, $t2, -1
-		bnez $t2, add_padding
-		lw $s2, PIXELS_ROW
-	no_padding_r:
-		addi $s1, $s1, -1
-		bnez $s1, loop
+		addi $s6, $s6, -1
+	bnez $s6, add_padding
+	no_padding:
+	addi $s4, $s4, -1
+	
+	bnez $s4, loop		#when all rows were iterated through, stop.
+
 open_bmp_write:
 	li $v0, 13
 	la $a0, bmp_path
@@ -260,69 +278,5 @@ close_bmp_write:
 exit:
 	li $v0, 10
 	syscall
+	
 
-
-#$a0, $a1, $a2- x function arguments (type: vertices)
-#$t1, $t2, $t3- y function arguments
-#$a0, $a1- x and y of given point
-#result in $v0
-#$v0- result (1- true, 0 otherwise)
-is_in_t1:
-	
-	sw $ra, 0($sp)
-	addi $sp, $sp, 4
-	#Calc sign for A1 and B1
-	move $t0, $a1
-	lw $a1, A1.x
-	lw $a2, B1.x
-	lw $t1, A1.y
-	lw $t2, B1.y
-	jal calc_sign
-	move $t9, $v0
-	
-	#Calc sign for A1 and C1
-	lw $a1, A1.x
-	lw $a2, C1.x
-	lw $t1, A1.y
-	lw $t2, C1.y
-	jal calc_sign
-	move $t8, $v0
-	
-	#Calc sign for B1 and C1
-	lw $a1, B1.x
-	lw $a2, C1.x
-	lw $t1, B1.y
-	lw $t2, C1.y
-	jal calc_sign
-	move $t7, $v0
-	
-	#1 z 3 i 2 z 3
-	mul $t9, $t9, $t7
-	mul $t8, $t8, $t7
-	mul $t7, $t8, $t9
-	
-	lw $ra, -4($sp)
-	addi $sp, $sp, -4
-	
-	bgez $t7, g_t_z
-		li $v0, 0
-		jr $ra
-	g_t_z:
-		li $v0, 1
-		jr $ra
-
-#TOCONSIDER: store both values as halfwords?
-
-#return (p1.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p3.y);
-calc_sign:
-	sub $t4, $a0, $a2
-	sub $t5, $t2, $t3
-	mul $t4, $t4, $t5
-	
-	sub $t5, $a1, $a2
-	sub $t6, $t1, $t3
-	mul $t5, $t5, $t6
-	
-	sub $v0, $t4, $t5
-	
-	jr $ra
