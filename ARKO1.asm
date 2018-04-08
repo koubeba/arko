@@ -14,7 +14,7 @@
 	prompty: .asciiz "Enter y coordinate: "
 	promptz: .asciiz "Enter z coordinate: "
 	newline: .asciiz "\n"
-	loop_com: .asciiz "loopin\n"
+	#loop_com: .asciiz "loopin\n"
 	
 	buffer: .space 1257682
 	
@@ -50,8 +50,8 @@
 	.eqv BMPH $s6
 	.eqv BMP $s7
 	
-	WHITE: .byte 0xFF
-	BLACK: .byte 0x00
+	WHITE: .byte 255
+	BLACK: .byte 0
 	
 	.eqv WIDTH -92($sp)
 	.eqv HEIGHT -88($sp)
@@ -84,7 +84,7 @@ read_bmp:
 	li $v0, 14
 	la $a0, (BMPH)
 	la $a1, buffer
-	li $a2, 61440
+	li $a2, 1257682
 	syscall
 	
 	move BMP, $a1
@@ -109,62 +109,20 @@ calculate_sizes:
 	#.eqv PIXELS_ROW -80($sp)
 	#.eqv PADDING -76($sp)
 	
-	lw $t0, -12($sp)
-	lw $t1, -4($sp)
+	ulw $t0, -12($sp)
+	li $t1, 3
 	mul $t0, $t0, $t1
-	addi $t0, $t0, 31
-	li $t1, 32
-	div $t0, $t1
-	mflo $t0
 	li $t1, 4
-	mul $t0, $t0, $t1 	#row size in bytes
+	div $t0, $t1
+	mfhi $t0	#padding in bytes
 	
-	li $v0, 1
-	move $a0, $t0
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
+	ulw $t1, -12($sp)
+	sub $t1, $t1, $t0	#pixels/row
 	
-	#Calculate amount of bytes per pixel:
-	li $t1, 8
-	lw $t2, -4($sp)		#Get bits/pixel
-	div $t2, $t2, $t1	#Divide bits/pixel by 8
-	
-	li $v0, 1
-	move $a0, $t2
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
-	
-	#Divide row size by amount of bytes/pixel:
-	div $t0, $t2
-	mflo $t3	#Quotient is the number of pixels in a row
-	mfhi $t1	#Remainder is the amount of pixel/padding
-	
-	li $v0, 1
-	move $a0, $t3
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
-	
-	#push the PIXELS_ROW on stacl
-	sw $t3, ($sp)
+	sw $t1, ($sp)		#save pixels/row on stack
 	addi $sp, $sp, 4
 	
-	mul $t1, $t1, $t2
-	
-	li $v0, 1
-	move $a0, $t1
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
-	
-	#push the padding on stack
-	sw $t1, ($sp)
+	sw $t0, ($sp)		#save padding on stack
 	addi $sp, $sp, 4
 	
 	
@@ -198,27 +156,8 @@ loop_prep:
 	lw $s1, PIXELS_ROW	#s1 holds the amount of pixels per row
 	lw $s6, PADDING		#s6 holds the amount of padding
 	
-	lb $t4, WHITE
-	lb $t5, BLACK
-	
-	li $v0, 1
-	addi $a0, $s1, 0
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
-	li $v0, 1
-	addi $a0, $s6, 0
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
-	li $v0, 1
-	addi $a0, $s4, 0
-	syscall
-	li $v0, 4
-	la $a0, newline
-	syscall
+	lbu $t4, WHITE
+	lbu $t5, BLACK
 	
 	
 #test: color red, white, red, white
@@ -227,25 +166,70 @@ loop:
 	lw $s1, PIXELS_ROW
 	lw $s6, PADDING
 	row_loop:
+		#------------------------------------#
+		#---Color the triangle pixels--------#
+		#------------------------------------#
+		
+		#Place the current x in $a1, y in $a2
+		li $a0, 0	#second triangle only, for now
+		or $a1, $s5, $zero
+		or $a2, $s4, $zero
+		
+		jal is_point_in_triangle
+		move $s7, $v0
+		
+		lbu $t4, WHITE
+		lbu $t5, BLACK
+		
+		bnez $s7, black
+		b white
+		
+		#li $a0, 0
+		#or $a1, $s5, $zero
+		#or $a2, $s4, $zero
+		#jal is_point_in_triangle 
+		#lbu $t4, WHITE
+		#lbu $t5, BLACK
+		
+		#bnez $v0, black
+		#bnez $s7, red
+		#b white
+		
+		black:
+		sb $t5,($s3)	#store byte in a buffer
+		sb $t5,1($s3)
+		sb $t5,2($s3)
+		addi $s3, $s3, 3
+		b increment
+		red:
+		sb $t5, ($s3)
+		sb $t5, 1($s3)
+		sb $t4, 2($s3)
+		addi $s3, $s3, 3
+		b increment
+		white:
 		sb $t4, ($s3)	#store byte in a buffer
 		sb $t4, 1($s3)
 		sb $t4, 2($s3)
 		addi $s3, $s3, 3
-	
+		
+		increment:
 		addi $s1, $s1, -1	#one pixel has been saved
+		addi $s5, $s5, 1
 	bnez $s1, row_loop
 		#add padding
 	beqz $s6, no_padding
 	add_padding:
-		sb $t4, ($s3)	#store byte in a buffer
-		sb $t4, 1($s3)
-		sb $t4, 2($s3)
+		sb $t5, ($s3)	#store byte in a buffer
+		sb $t5, 1($s3)	#store byte in a buffer
+		sb $t5, 2($s3)	#store byte in a buffer
 		addi $s3, $s3, 3
 		
 		addi $s6, $s6, -1
 	bnez $s6, add_padding
 	no_padding:
 	addi $s4, $s4, -1
+	li $s5, 0
 	
 	bnez $s4, loop		#when all rows were iterated through, stop.
 
@@ -263,7 +247,7 @@ write_bmp:
 	li $v0, 15
 	la $a0, (BMPH)
 	la $a1, buffer
-	li $a2, 61440
+	li $a2, 1257682
 	syscall
 	
 	move BMP, $a1
@@ -278,5 +262,231 @@ close_bmp_write:
 exit:
 	li $v0, 10
 	syscall
-	
 
+
+
+#a0: 1 or 2 triangle (0 for first, 1 for second)
+#a1...a2 coords of the given point	
+is_point_in_triangle:
+
+	sw $s3, ($sp)
+	sw $s4, 4($sp)
+	sw $s5, 8($sp)
+	sw $s6, 12($sp)
+	sw $s7, 16($sp)
+	addi $sp, $sp, 20
+	
+	li $s3, 0
+	li $s4, 0
+	li $s5, 0
+	li $s6, 0
+	li $s7, 0
+	li $t6, 0
+	li $t7, 0
+	li $t8, 0
+	li $t9, 0
+
+	bnez $a0, triangle2
+	triangle1:
+		lw $t0, -92($sp)
+		lw $t1, -88($sp)
+		lw $t2, -80($sp)
+		lw $t3, -76($sp)
+		lw $t4, -68($sp)
+		lw $t5, -64($sp)
+		b calculate
+	triangle2:
+		lw $t0, -56($sp)
+		lw $t1, -52($sp)
+		lw $t2, -44($sp)
+		lw $t3, -40($sp)
+		lw $t4, -32($sp)
+		lw $t5, -28($sp)
+	calculate:
+		#Calculate the 2*triangle area.
+		sub $t6, $t3, $t5	#y2- y3
+		mul $t6, $t6, $t0	#(y2-y3)*x1
+		
+		sub $t7, $t5, $t1	#y3 - y1
+		mul $t7, $t7, $t2	#(y3-y1)*x2
+		
+		sub $t8, $t1, $t3	#y1-y2
+		mul $t8, $t8, $t4	#(y1-y2)*x3
+		
+		add $t9, $t6, $t7
+		add $t9, $t6, $t8
+		abs $t9, $t9
+		
+		#Calculate the 2*ABP area.
+		#use $a1 instead of $t4 and $a2 instead of $t5
+		sub $t6, $t3, $a2	#y2- y3
+		mul $t6, $t6, $t0	#(y2-y3)*x1
+		
+		sub $t7, $a2, $t1	#y3 - y1
+		mul $t7, $t7, $t2	#(y3-y1)*x2
+		
+		sub $t8, $t1, $t3	#y1-y2
+		mul $t8, $t8, $a1	#(y1-y2)*x3
+		
+		add $s5, $t6, $t7
+		add $s5, $s5, $t8
+		abs $s5, $s5
+		
+		#Calculate the 2*PBC area.
+		#use $a1 instead of $t0 and $a2 instead of $t1
+		sub $t6, $t3, $t5	#y2- y3
+		mul $t6, $t6, $a1	#(y2-y3)*x1
+		
+		sub $t7, $t5, $a2	#y3 - y1
+		mul $t7, $t7, $t2	#(y3-y1)*x2
+		
+		sub $t8, $a2, $t3	#y1-y2
+		mul $t8, $t8, $t4	#(y1-y2)*x3
+		
+		add $s6, $t6, $t7
+		add $s6, $s6, $t8
+		abs $s6, $s6
+		
+		#Calculate the 2*APC area.
+		#use $a1 instead of $t2 and $a2 instead of $t3
+		sub $t6, $a2, $t5	#y2- y3
+		mul $t6, $t6, $t0	#(y2-y3)*x1
+		
+		sub $t7, $t5, $t1	#y3 - y1
+		mul $t7, $t7, $a1	#(y3-y1)*x2
+		
+		sub $t8, $t1, $a2	#y1-y2
+		mul $t8, $t8, $t4	#(y1-y2)*x3
+		
+		add $s7, $t6, $t7
+		add $s7, $s7, $t8
+		abs $s7, $s7
+		
+		li $t8, 0
+		add $t8, $s7, $s6
+		add $t8, $t8, $s5
+		
+		#Check if $t6 = $t7 and store the result in $v0
+		beq $t9, $t8, true
+		false:
+		li $v0, 0
+		b return
+		
+		true:
+		li $v0, 1
+		b return
+	
+	return:
+	lw $s3, -20($sp)
+	lw $s4, -16($sp)
+	lw $s5, -12($sp)
+	lw $s6, -8($sp)
+	lw $s7, -4($sp)
+	addi $sp, $sp, -20
+	jr $ra
+
+#a0: 1 or 2 triangle (0 for first, 1 for second)
+#a1...a2 coords of the given point	
+#v0: result
+calculate_z:
+	sw $s3, ($sp)
+	sw $s4, 4($sp)
+	sw $s5, 8($sp)
+	sw $s6, 12($sp)
+	sw $s7, 16($sp)
+	addi $sp, $sp, 20
+	
+	li $s3, 0
+	li $s4, 0
+	li $s5, 0
+	li $s6, 0
+	li $s7, 0
+	li $t6, 0
+	li $t7, 0
+	li $t8, 0
+	li $t9, 0
+	
+	bnez $a0, triangle22
+	triangle11:
+		lw $t0, -92($sp)	#x1
+		lw $t1, -88($sp)	#y1
+		lw $t2, -84($sp)	#z1
+		
+		lw $t3, -80($sp)	#x2
+		lw $t4, -76($sp)	#y2
+		lw $t5, -72($sp)	#z2
+		
+		lw $t6, -68($sp)	#x3
+		lw $t7, -64($sp)	#y3
+		lw $t8, -60($sp)	#z3
+		b calculatee
+	triangle22:
+		lw $t0, -56($sp)	#ax
+		lw $t1, -52($sp)	#ay
+		lw $t2, -48($sp)	#az
+		
+		lw $t3, -44($sp)	#bx
+		lw $t4, -40($sp)	#by
+		lw $t5, -36($sp)	#bz
+		
+		lw $t6, -32($sp)	#cx
+		lw $t7, -28($sp)	#cy
+		lw $t8, -24($sp)	#cz
+	calculatee:
+		sub $t9, $t3, $t0	#Bx - Ax
+		sub $s3, $t7, $t1	#Cy - Ay
+		mul $s4, $s3, $t9	#(Bx-Ax)(Cy-Ay)
+		
+		sub $t9, $t6, $t0	#Cx - Ax
+		sub $s3, $t4, $t1	#By - Ay
+		mul $s5, $s3, $t9	#(Cx-Ax)(By-Ay)
+		
+		sub $s4, $s4, $s5	#(Bx-Ax)(Cy-Ay) - (Cx-Ax)(By-Ay)
+		
+		#$s4- det
+		
+		#-----------------------------------------------------------------------------------------------------#
+		#-- z = Az + {[(Bx-Ax)-(Cx-Ax)(Bz-Az)](y-Ay) - [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x-Ax)}/det-----------#
+		#-----------------------------------------------------------------------------------------------------#
+		
+		sub $t9, $t3, $t0	#Bx - Ax
+		sub $s3, $t8, $t2	#Cz - Az
+		mul $s5, $t9, $s3	#(Bx-Ax)(Cz-Az)
+		
+		sub $t9, $t6, $t0	#Cx-Ax
+		sub $s3, $t5, $t2	#bz-az
+		mul $s6, $t9, $s3	#(Cx-Ax)(Bz-Az)
+		
+		sub $s5, $s5, $s6	#(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)
+		sub $t9, $a2, $t1	#y - Ay
+		mul $s5, $s5, $t9	#[(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)](y-Ay)
+		
+		
+		sub $t9, $t4, $t1	#By - Ay
+		sub $s3, $t8, $t2	#Cz-Az
+		mul $s6, $t9, $s6	#(By-Ay)(Cz-Az)
+		
+		sub $t9, $t7, $t1	#Cy-Ay
+		sub $s3, $t5, $t2	#Bz-Az
+		mul $s7, $t9, $s3 	#(Cy-Ay)(Bz-Az)
+		
+		sub $s6, $s6, $s7	#(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)
+		sub $t9, $a1, $t0	#x-Ax
+		mul $s6, $s6, $t9	#[(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x - Ax)
+		
+		#-------------------------------------------------#
+		#---TODO: implement a fixed point arithmetic------#
+		#-------------------------------------------------#
+		
+		sub $s5, $s5, $s6 	#[(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)](y-Ay) - [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x - Ax)
+		div $s5, $s5, $s4	#{[(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)](y-Ay) - [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x - Ax)}/det
+		
+		add $v0, $s5, $t2	#result
+	returnn:
+	lw $s3, -20($sp)
+	lw $s4, -16($sp)
+	lw $s5, -12($sp)
+	lw $s6, -8($sp)
+	lw $s7, -4($sp)
+	addi $sp, $sp, -20
+	jr $ra
