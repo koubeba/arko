@@ -171,29 +171,47 @@ loop:
 		#------------------------------------#
 		
 		#Place the current x in $a1, y in $a2
-		li $a0, 0	#second triangle only, for now
+		li $a0, 1	#second triangle only, for now
 		or $a1, $s5, $zero
 		or $a2, $s4, $zero
 		
 		jal is_point_in_triangle
 		move $s7, $v0
 		
+		li $a0, 0
+		or $a1, $s5, $zero
+		or $a2, $s4, $zero
+		jal is_point_in_triangle 
+		
 		lbu $t4, WHITE
 		lbu $t5, BLACK
 		
-		bnez $s7, black
+		bnez $v0, is_in_1st
+		bnez $s7, red
 		b white
 		
-		#li $a0, 0
-		#or $a1, $s5, $zero
-		#or $a2, $s4, $zero
-		#jal is_point_in_triangle 
-		#lbu $t4, WHITE
-		#lbu $t5, BLACK
+		is_in_1st:
+		beqz $s7, black
 		
-		#bnez $v0, black
-		#bnez $s7, red
-		#b white
+		li $a0, 1
+		or $a1, $s5, $zero
+		or $a2, $s4, $zero
+		
+		jal calculate_z
+		move $s7, $v0
+		
+		li $a0, 0
+		or $a1, $s5, $zero
+		or $a2, $s4, $zero
+		jal calculate_z
+		move $t9, $v0
+		
+		lbu $t4, WHITE
+		lbu $t5, BLACK
+		
+		bge $s7, 10, red
+		b black
+		
 		
 		black:
 		sb $t5,($s3)	#store byte in a buffer
