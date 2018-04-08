@@ -13,7 +13,7 @@ main:
 	#syscall
 	#move $s1, $v0
 	
-	li $a1, 2
+	li $a1, 1
 	li $a2, 2
 	
 	jal is_point_in
@@ -48,10 +48,10 @@ is_point_in:
 	#triangle1:
 		li $t0, 1	#x1
 		li $t1, 1	#y1
-		li $t2, 8	#x2
-		li $t3, 1	#y2
+		li $t2, 100	#x2
+		li $t3, 100	#y2
 		li $t4, 1	#x3
-		li $t5, 6	#y3
+		li $t5, 100	#y3
 		
 		#Calculate the 2*triangle area.
 		sub $t6, $t3, $t5	#y2- y3

@@ -288,12 +288,12 @@ is_point_in_triangle:
 
 	bnez $a0, triangle2
 	triangle1:
-		lw $t0, -92($sp)
-		lw $t1, -88($sp)
-		lw $t2, -80($sp)
-		lw $t3, -76($sp)
-		lw $t4, -68($sp)
-		lw $t5, -64($sp)
+		lw $t0, -92($sp)	#ax
+		lw $t1, -88($sp)	#ay
+		lw $t2, -80($sp)	#bx
+		lw $t3, -76($sp)	#by
+		lw $t4, -68($sp)	#cx
+		lw $t5, -64($sp)	#cy
 		b calculate
 	triangle2:
 		lw $t0, -56($sp)
@@ -303,71 +303,55 @@ is_point_in_triangle:
 		lw $t4, -32($sp)
 		lw $t5, -28($sp)
 	calculate:
-		#Calculate the 2*triangle area.
-		sub $t6, $t3, $t5	#y2- y3
-		mul $t6, $t6, $t0	#(y2-y3)*x1
+		sub $t6, $a1, $t2	#x-Bx
+		sub $t7, $t1, $t3	#Ay-By
 		
-		sub $t7, $t5, $t1	#y3 - y1
-		mul $t7, $t7, $t2	#(y3-y1)*x2
+		mul $t6, $t6, $t7
 		
-		sub $t8, $t1, $t3	#y1-y2
-		mul $t8, $t8, $t4	#(y1-y2)*x3
+		sub $t7, $t0, $t2
+		sub $t8, $a2, $t3
 		
-		add $t9, $t6, $t7
-		add $t9, $t6, $t8
-		abs $t9, $t9
+		mul $t7, $t7, $t8
 		
-		#Calculate the 2*ABP area.
-		#use $a1 instead of $t4 and $a2 instead of $t5
-		sub $t6, $t3, $a2	#y2- y3
-		mul $t6, $t6, $t0	#(y2-y3)*x1
+		sub $t6, $t6, $t7
 		
-		sub $t7, $a2, $t1	#y3 - y1
-		mul $t7, $t7, $t2	#(y3-y1)*x2
 		
-		sub $t8, $t1, $t3	#y1-y2
-		mul $t8, $t8, $a1	#(y1-y2)*x3
 		
-		add $s5, $t6, $t7
-		add $s5, $s5, $t8
-		abs $s5, $s5
+		sub $t7, $a1, $t4
+		sub $t8, $t3, $t5
 		
-		#Calculate the 2*PBC area.
-		#use $a1 instead of $t0 and $a2 instead of $t1
-		sub $t6, $t3, $t5	#y2- y3
-		mul $t6, $t6, $a1	#(y2-y3)*x1
+		mul $t7, $t7, $t8
 		
-		sub $t7, $t5, $a2	#y3 - y1
-		mul $t7, $t7, $t2	#(y3-y1)*x2
+		sub $t8, $t2, $t4
+		sub $t9, $a2, $t5
 		
-		sub $t8, $a2, $t3	#y1-y2
-		mul $t8, $t8, $t4	#(y1-y2)*x3
+		mul $t8, $t8, $t9
 		
-		add $s6, $t6, $t7
-		add $s6, $s6, $t8
-		abs $s6, $s6
+		sub $t7, $t7, $t8
 		
-		#Calculate the 2*APC area.
-		#use $a1 instead of $t2 and $a2 instead of $t3
-		sub $t6, $a2, $t5	#y2- y3
-		mul $t6, $t6, $t0	#(y2-y3)*x1
 		
-		sub $t7, $t5, $t1	#y3 - y1
-		mul $t7, $t7, $a1	#(y3-y1)*x2
+		sub $t8, $a1, $t0
+		sub $t9, $t5, $t1
 		
-		sub $t8, $t1, $a2	#y1-y2
-		mul $t8, $t8, $t4	#(y1-y2)*x3
+		mul $t8, $t8, $t9
 		
-		add $s7, $t6, $t7
-		add $s7, $s7, $t8
-		abs $s7, $s7
+		sub $t9, $t4, $t0
+		sub $s3, $a2, $t1
 		
-		li $t8, 0
-		add $t8, $s7, $s6
-		add $t8, $t8, $s5
+		mul $t9, $t9, $s3
 		
-		#Check if $t6 = $t7 and store the result in $v0
-		beq $t9, $t8, true
+		sub $t8, $t8, $t9
+		
+		sge $t1, $t6, 0
+		sge $t2, $t7, 0
+		sge $t3, $t8, 0
+		
+		bne $t1, $t2, false
+		bne $t2, $t3, false
+		b true
+		
+	
+		
 		false:
 		li $v0, 0
 		b return
