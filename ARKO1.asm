@@ -209,7 +209,7 @@ loop:
 		lbu $t4, WHITE
 		lbu $t5, BLACK
 		
-		bge $s7, 10, red
+		bge $s7, $v0, red
 		b black
 		
 		
@@ -451,39 +451,50 @@ calculate_z:
 		#-- z = Az + {[(Bx-Ax)-(Cx-Ax)(Bz-Az)](y-Ay) - [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x-Ax)}/det-----------#
 		#-----------------------------------------------------------------------------------------------------#
 		
+		#------------------------------------------------------------------#
+		#--Caclulate the [(Bx-Ax)(Cz-Az)-(Cx-Ax)(Bz-Az)](y-Ay)-------------#
+		#------------------------------------------------------------------#
+		
 		sub $t9, $t3, $t0	#Bx - Ax
-		sub $s3, $t8, $t2	#Cz - Az
-		mul $s5, $t9, $s3	#(Bx-Ax)(Cz-Az)
+		sub $s5, $t8, $t2	#Cz-Az
+		mul $t9, $t9, $s5	#(Bx-ax)(Cz-Az)
 		
-		sub $t9, $t6, $t0	#Cx-Ax
-		sub $s3, $t5, $t2	#bz-az
-		mul $s6, $t9, $s3	#(Cx-Ax)(Bz-Az)
+		sub $s5, $t6, $t0	#Cx-Ax
+		sub $s6, $t5, $t2	#Bz - Az
+		mul $s5, $s5, $s6	#(Cx-Ax)(Bz-Az)
 		
-		sub $s5, $s5, $s6	#(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)
-		sub $t9, $a2, $t1	#y - Ay
-		mul $s5, $s5, $t9	#[(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)](y-Ay)
+		sub $t9, $t9, $s5	#(Bx-Ax)(Cz-AZ) - (Cx-Ax)(Bz-Az)
 		
+		sub $s5, $a2, $t1	#(y-Ay)
 		
-		sub $t9, $t4, $t1	#By - Ay
-		sub $s3, $t8, $t2	#Cz-Az
-		mul $s6, $t9, $s6	#(By-Ay)(Cz-Az)
+		#----------------#
+		mul $t9, $t9, $s5	#(y-Ay)[(Bx-Ax)(Cz-AZ) - (Cx-Ax)(Bz-Az)]
+		#----------------#
 		
-		sub $t9, $t7, $t1	#Cy-Ay
-		sub $s3, $t5, $t2	#Bz-Az
-		mul $s7, $t9, $s3 	#(Cy-Ay)(Bz-Az)
+		#------------------------------------------------------------------#
+		#--Calculate the [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x-Ax)-----------#
+		#------------------------------------------------------------------#
 		
-		sub $s6, $s6, $s7	#(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)
-		sub $t9, $a1, $t0	#x-Ax
-		mul $s6, $s6, $t9	#[(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x - Ax)
+		sub $s5, $t4, $t1	#By-Ay
+		sub $s6, $t8, $t2	#Cz-Az
+		mul $s5, $s5, $s6	#(By-Ay)(Cz-Az)
 		
-		#-------------------------------------------------#
-		#---TODO: implement a fixed point arithmetic------#
-		#-------------------------------------------------#
+		sub $s6, $t7, $t1	#Cy-Ay
+		sub $s7, $t5, $t2	#Bz-Az
+		mul $s6, $s6, $s7	#(Cy-Ay)(Bz-AZ)
 		
-		sub $s5, $s5, $s6 	#[(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)](y-Ay) - [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x - Ax)
-		div $s5, $s5, $s4	#{[(Bx-Ax)(Cz-Az) - (Cx-Ax)(Bz-Az)](y-Ay) - [(By-Ay)(Cz-Az) - (Cy-Ay)(Bz-Az)](x - Ax)}/det
+		sub $s5, $s5, $s6	#(By-Ay)(Cz-Az) - (Cy-ay)(Bz-Az)
 		
-		add $v0, $s5, $t2	#result
+		sub $s7, $a1, $t0	#(x-Ax)
+		
+		#----------------#
+		mul $s5, $s5, $s7	#(x-Ax)[(By-Ay)(Cz-Az) - (Cy-ay)(Bz-Az)]
+		#----------------#
+		
+		sub $t9, $t9, $s5	#(y-Ay)[(Bx-Ax)(Cz-AZ) - (Cx-Ax)(Bz-Az)] - (x-Ax)[(By-Ay)(Cz-Az) - (Cy-ay)(Bz-Az)]
+		div $t9, $t9, $s4	#.../det
+		
+		add $v0, $t9, $t2	#...+Az
 	returnn:
 	lw $s3, -20($sp)
 	lw $s4, -16($sp)
