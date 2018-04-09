@@ -16,12 +16,7 @@
 	newline: .asciiz "\n"
 	#loop_com: .asciiz "loopin\n"
 	
-	buffer: .space 1257682
-	
-	maskz: .word 511
-	masky: .word 1048064
-	maskx: .word 536346624
-	maskcolor: .word 2147483648
+	buffer: .space 1228920
 	
 	.eqv A1.x -72($sp)
 	.eqv A1.y -68($sp)
@@ -84,7 +79,7 @@ read_bmp:
 	li $v0, 14
 	la $a0, (BMPH)
 	la $a1, buffer
-	li $a2, 1257682
+	li $a2, 1228920
 	syscall
 	
 	move BMP, $a1
@@ -136,6 +131,8 @@ get_coord_input:
 	
 	li $v0, 5	#read the coordinate as integer
 	syscall
+	bge $v0, 600, get_coord_input
+	ble $v0, 0, get_coord_input
 	
 	sw $v0, 0($sp)	#push the coordinate on stack
 	addi $sp, $sp, 4
@@ -265,7 +262,7 @@ write_bmp:
 	li $v0, 15
 	la $a0, (BMPH)
 	la $a1, buffer
-	li $a2, 1257682
+	li $a2, 1228920
 	syscall
 	
 	move BMP, $a1
@@ -492,7 +489,23 @@ calculate_z:
 		#----------------#
 		
 		sub $t9, $t9, $s5	#(y-Ay)[(Bx-Ax)(Cz-AZ) - (Cx-Ax)(Bz-Az)] - (x-Ax)[(By-Ay)(Cz-Az) - (Cy-ay)(Bz-Az)]
+		
+		#------------------------------------------------------------------#
+		#------Implement the fixed point arithmetic here.------------------#
+		#------------------------------------------------------------------#
+		#---Since the last operation can produce quotients, interpret------#
+		#---the quotient as an integer with a fixed point, where the last--#
+		#---4 bits is the number after the coma. We use only 4 bits--------#
+		#---because the resolution of the image isn't high anyway, so -----#
+		#---we don't need bigger precision.--------------------------------#
+		#------------------------------------------------------------------#
+		
+		
+		sll $t9, $t9, 4
+		sll $s4, $s4, 4
+		
 		div $t9, $t9, $s4	#.../det
+		
 		
 		add $v0, $t9, $t2	#...+Az
 	returnn:
